@@ -135,6 +135,26 @@ func arrayDelimiter(v any) []byte {
 
 const hextable = "0123456789abcdef"
 
+func appendAllUint[T uint | uint8 | uint16 | uint32 | uint64](xx []T, b []byte, del []byte) []byte {
+	for i, aa := range xx {
+		if i > 0 {
+			b = append(b, del...)
+		}
+		b = strconv.AppendUint(b, uint64(aa), 10)
+	}
+	return b
+}
+
+func appendAllInt[T int | int8 | int16 | int32 | int64](xx []T, b []byte, del []byte) []byte {
+	for i, aa := range xx {
+		if i > 0 {
+			b = append(b, del...)
+		}
+		b = strconv.AppendInt(b, int64(aa), 10)
+	}
+	return b
+}
+
 func (a ArrayOf[T]) Value() (driver.Value, error) {
 	if a == nil {
 		return nil, nil
@@ -168,85 +188,160 @@ func (a ArrayOf[T]) Value() (driver.Value, error) {
 	b := make([]byte, 0, sz)
 
 	b = append(b, '{')
-	for i, aa := range a {
-		if i > 0 {
-			b = append(b, del...)
-		}
-
-		swval := any(aa)
-		if v, ok := swval.(driver.Valuer); ok {
-			var err error
-			swval, err = v.Value()
-			if err != nil {
-				return nil, fmt.Errorf("pq: %w", err)
+	switch xx := any([]T(a)).(type) {
+	case []bool:
+		for i, aa := range xx {
+			if i > 0 {
+				b = append(b, del...)
+			}
+			if aa {
+				b = append(b, 't')
+			} else {
+				b = append(b, 'f')
 			}
 		}
-
-	restart:
-		switch v := swval.(type) {
-		default:
-			rv := reflect.ValueOf(aa)
-			switch rv.Kind() {
-			case reflect.String:
-				b = appendArrayQuotedText(b, []byte(rv.String()))
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				b = strconv.AppendInt(b, rv.Int(), 10)
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				b = strconv.AppendUint(b, rv.Uint(), 10)
-			case reflect.Float32, reflect.Float64:
-				b = strconv.AppendFloat(b, rv.Float(), 'f', -1, 32)
-			case reflect.Ptr:
-				if rv.IsNil() {
-					b = append(b, "NULL"...)
-					continue
-				}
-				swval = rv.Elem().Interface()
-				goto restart
-			default:
-				return nil, fmt.Errorf("pq: unsupported array type %T", zero)
+	case []uint:
+		b = appendAllUint(xx, b, del)
+	case []uint8:
+		b = appendAllUint(xx, b, del)
+	case []uint16:
+		b = appendAllUint(xx, b, del)
+	case []uint32:
+		b = appendAllUint(xx, b, del)
+	case []uint64:
+		b = appendAllUint(xx, b, del)
+	case []int:
+		b = appendAllInt(xx, b, del)
+	case []int8:
+		b = appendAllInt(xx, b, del)
+	case []int16:
+		b = appendAllInt(xx, b, del)
+	case []int32:
+		b = appendAllInt(xx, b, del)
+	case []int64:
+		b = appendAllInt(xx, b, del)
+	case [][]byte:
+		for i, v := range xx {
+			if i > 0 {
+				b = append(b, del...)
 			}
-		case []byte:
 			b = append(b, `"\\x`...)
 			for _, c := range v {
 				b = append(b, hextable[c>>4], hextable[c&0x0f])
 			}
 			b = append(b, `"`...)
-		case string:
-			b = appendArrayQuotedText(b, []byte(v))
-		case int:
-			b = strconv.AppendInt(b, int64(v), 10)
-		case int8:
-			b = strconv.AppendInt(b, int64(v), 10)
-		case int16:
-			b = strconv.AppendInt(b, int64(v), 10)
-		case int32:
-			b = strconv.AppendInt(b, int64(v), 10)
-		case int64:
-			b = strconv.AppendInt(b, v, 10)
-		case uint:
-			b = strconv.AppendUint(b, uint64(v), 10)
-		case uint8:
-			b = strconv.AppendUint(b, uint64(v), 10)
-		case uint16:
-			b = strconv.AppendUint(b, uint64(v), 10)
-		case uint32:
-			b = strconv.AppendUint(b, uint64(v), 10)
-		case uint64:
-			b = strconv.AppendUint(b, v, 10)
-		case float32:
-			b = strconv.AppendFloat(b, float64(v), 'f', -1, 32)
-		case float64:
-			b = strconv.AppendFloat(b, v, 'f', -1, 64)
-		case bool:
-			if any(aa).(bool) {
-				b = append(b, 't')
-			} else {
-				b = append(b, 'f')
+		}
+	case []string:
+		for i, v := range xx {
+			if i > 0 {
+				b = append(b, del...)
 			}
-		case time.Time:
+			b = appendArrayQuotedText(b, []byte(v))
+		}
+	case []float32:
+		for i, v := range xx {
+			if i > 0 {
+				b = append(b, del...)
+			}
+			b = strconv.AppendFloat(b, float64(v), 'f', -1, 32)
+		}
+	case []float64:
+		for i, v := range xx {
+			if i > 0 {
+				b = append(b, del...)
+			}
+			b = strconv.AppendFloat(b, v, 'f', -1, 64)
+		}
+	case []time.Time:
+		for i, v := range xx {
+			if i > 0 {
+				b = append(b, del...)
+			}
 			b = append(b, '"')
 			b = append(b, FormatTimestamp(v)...)
 			b = append(b, '"')
+		}
+	default:
+		for i, aa := range a {
+			if i > 0 {
+				b = append(b, del...)
+			}
+
+			swval := any(aa)
+			if v, ok := swval.(driver.Valuer); ok {
+				var err error
+				swval, err = v.Value()
+				if err != nil {
+					return nil, fmt.Errorf("pq: %w", err)
+				}
+			}
+
+		restart:
+			switch v := swval.(type) {
+			default:
+				rv := reflect.ValueOf(aa)
+				switch rv.Kind() {
+				case reflect.String:
+					b = appendArrayQuotedText(b, []byte(rv.String()))
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					b = strconv.AppendInt(b, rv.Int(), 10)
+				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+					b = strconv.AppendUint(b, rv.Uint(), 10)
+				case reflect.Float32, reflect.Float64:
+					b = strconv.AppendFloat(b, rv.Float(), 'f', -1, 32)
+				case reflect.Ptr:
+					if rv.IsNil() {
+						b = append(b, "NULL"...)
+						continue
+					}
+					swval = rv.Elem().Interface()
+					goto restart
+				default:
+					return nil, fmt.Errorf("pq: unsupported array type %T", zero)
+				}
+			case []byte:
+				b = append(b, `"\\x`...)
+				for _, c := range v {
+					b = append(b, hextable[c>>4], hextable[c&0x0f])
+				}
+				b = append(b, `"`...)
+			case string:
+				b = appendArrayQuotedText(b, []byte(v))
+			case int:
+				b = strconv.AppendInt(b, int64(v), 10)
+			case int8:
+				b = strconv.AppendInt(b, int64(v), 10)
+			case int16:
+				b = strconv.AppendInt(b, int64(v), 10)
+			case int32:
+				b = strconv.AppendInt(b, int64(v), 10)
+			case int64:
+				b = strconv.AppendInt(b, v, 10)
+			case uint:
+				b = strconv.AppendUint(b, uint64(v), 10)
+			case uint8:
+				b = strconv.AppendUint(b, uint64(v), 10)
+			case uint16:
+				b = strconv.AppendUint(b, uint64(v), 10)
+			case uint32:
+				b = strconv.AppendUint(b, uint64(v), 10)
+			case uint64:
+				b = strconv.AppendUint(b, v, 10)
+			case float32:
+				b = strconv.AppendFloat(b, float64(v), 'f', -1, 32)
+			case float64:
+				b = strconv.AppendFloat(b, v, 'f', -1, 64)
+			case bool:
+				if any(aa).(bool) {
+					b = append(b, 't')
+				} else {
+					b = append(b, 'f')
+				}
+			case time.Time:
+				b = append(b, '"')
+				b = append(b, FormatTimestamp(v)...)
+				b = append(b, '"')
+			}
 		}
 	}
 	b = append(b, '}')

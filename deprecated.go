@@ -181,19 +181,19 @@ func Array(a any) interface {
 	case [][]byte:
 		return (*ArrayOf[[]byte])(&a)
 	case *[]bool:
-		return (*BoolArray)(a)
+		return (*ArrayOf[bool])(a)
 	case *[]float64:
-		return (*Float64Array)(a)
+		return (*ArrayOf[float64])(a)
 	case *[]float32:
-		return (*Float32Array)(a)
+		return (*ArrayOf[float32])(a)
 	case *[]int64:
-		return (*Int64Array)(a)
+		return (*ArrayOf[int64])(a)
 	case *[]int32:
-		return (*Int32Array)(a)
+		return (*ArrayOf[int32])(a)
 	case *[]string:
-		return (*StringArray)(a)
+		return (*ArrayOf[string])(a)
 	case *[][]byte:
-		return (*ByteaArray)(a)
+		return (*ArrayOf[[]byte])(a)
 	}
 	return GenericArray{a}
 }
